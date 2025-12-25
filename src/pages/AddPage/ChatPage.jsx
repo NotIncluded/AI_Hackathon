@@ -3,21 +3,25 @@ import axios from "axios";
 import { useParams } from "react-router";
 import { useContext } from "react";
 import { QuestionsContext } from "../../contexts/QuestionsContext"; // adjust path if needed
+import ReactMarkdown from "react-markdown";
 
 function ChatPage({ agent_id }) {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [threadId, setThreadId] = useState(null);
+  const [isThinking, setIsThinking] = useState(false);
 
   const { surveyId } = useParams();
   const { setQuestions } = useContext(QuestionsContext);
 
   useEffect(() => {
+    if (threadId) return;
+    
     const startNewThread = async () => {
       try {
         const res = await axios.get("http://localhost:8000/thread");
         setThreadId(res.data.threadId);
-        console.log("Thread created:", res.data.threadId);
+        console.log("Thread creating survey created:", res.data.threadId);
       } catch (err) {
         console.error("Failed to create thread", err);
       }
@@ -37,6 +41,7 @@ function ChatPage({ agent_id }) {
     const userMsg = { role: "user", content: input };
     setMessages((prev) => [...prev, userMsg]);
     setInput("");
+    setIsThinking(true); // <-- Start thinking indicator
 
     try {
       const res = await axios.post("http://localhost:8000/chat", {
@@ -59,11 +64,10 @@ function ChatPage({ agent_id }) {
         let parsedQuestions;
         try {
           parsedQuestions = JSON.parse(code);
-          setQuestions(parsedQuestions); // ✅ Update context instead of localStorage
+          setQuestions(parsedQuestions); // ✅ Update context
         } catch (e) {
           console.error("Failed to parse survey code as JSON", e);
         }
-
       }
 
       const botMsg = { role: "assistant", content: text };
@@ -74,6 +78,8 @@ function ChatPage({ agent_id }) {
         content: "Error: Unable to fetch response.",
       };
       setMessages((prev) => [...prev, errorMsg]);
+    } finally {
+      setIsThinking(false); // <-- Stop thinking indicator
     }
   };
 
@@ -94,10 +100,17 @@ function ChatPage({ agent_id }) {
                   : "bg-gray-300 text-gray-800"
               }`}
             >
-              {msg.content}
+              <ReactMarkdown>{msg.content}</ReactMarkdown>
             </div>
           </div>
         ))}
+          {isThinking && (
+            <div className="my-2 flex justify-start">
+              <div className="px-4 py-2 rounded-lg max-w-[75%] bg-gray-300 text-gray-800 animate-pulse">
+                <span className="inline-block animate-pulse">...</span>
+              </div>
+            </div>
+          )}
       </div>
 
       <div className="flex">
@@ -108,12 +121,12 @@ function ChatPage({ agent_id }) {
           onKeyDown={(e) => e.key === "Enter" && sendMessage()}
           placeholder="Type your message..."
         />
-        <button
+        {/* <button
           className="bg-green-button text-white px-4 py-2 hover:bg-lime-400 transition-colors duration-200"
           onClick={sendMessage}
         >
           <i className="fa-solid fa-paperclip"></i>
-        </button>
+        </button> */}
         <button
           className="bg-green-button text-white px-4 py-2 rounded-r hover:bg-lime-400 transition-colors duration-200"
           onClick={sendMessage}

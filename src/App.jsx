@@ -1,20 +1,68 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import axios from "axios";
+import TopBar2 from "./components/Topbar2"; // ✅ Make sure this path is correct
+import ReactMarkdown from "react-markdown";
 
-function App() {
+function App({ agent_id }) {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
+  const [threadId, setThreadId] = useState(null);
+  const [isThinking, setIsThinking] = useState(false);
+
+  useEffect(() => {
+    if (threadId) return;
+    
+    const startNewThread = async () => {
+      try {
+        const res = await axios.get("http://localhost:8000/thread");
+        setThreadId(res.data.threadId);
+      } catch (err) {
+        console.error("Failed to create thread", err);
+      }
+    };
+    startNewThread();
+  }, []);
 
   const sendMessage = async () => {
-    if (!input.trim()) return;
+    if (!input.trim() || !threadId) return;
 
     const userMsg = { role: "user", content: input };
     setMessages((prev) => [...prev, userMsg]);
     setInput("");
+    setIsThinking(true);
+
+    let surveys = [];
+    try {
+      const surveysRaw = localStorage.getItem("surveys");
+      if (surveysRaw) surveys = JSON.parse(surveysRaw);
+
+      const responses = Object.entries(localStorage)
+        .filter(([key]) => key.startsWith("responses_"))
+        .flatMap(([key, value]) => {
+          try {
+            const parsed = JSON.parse(value);
+            return Array.isArray(parsed) ? parsed : [parsed];
+          } catch {
+            return [];
+          }
+        });
+
+      surveys = surveys.map((survey) => ({
+        ...survey,
+        responses: responses.filter(
+          (res) => String(res.s_id) === String(survey.s_id)
+        ),
+      }));
+    } catch (err) {
+      console.error("Error processing localStorage data", err);
+    }
 
     try {
       const res = await axios.post("http://localhost:8000/chat", {
         message: input,
+        threadId,
+        agent_ai: agent_id,
+        surveys,
       });
 
       const botMsg = { role: "assistant", content: res.data.content };
@@ -25,53 +73,27 @@ function App() {
         content: "Error: Unable to fetch response.",
       };
       setMessages((prev) => [...prev, errorMsg]);
-    }
-  };
-
-  const uploadDocument = async (file) => {
-    const formData = new FormData();
-    formData.append("file", file);
-
-    const userMsg = { role: "user", content: `Uploaded: ${file.name}` };
-    setMessages((prev) => [...prev, userMsg]);
-
-    try {
-      const res = await axios.post(
-        "http://localhost:8000/upload-doc",
-        formData
-      );
-      const botMsg = { role: "assistant", content: res.data.content };
-      setMessages((prev) => [...prev, botMsg]);
-    } catch (err) {
-      const errorMsg = {
-        role: "assistant",
-        content: "Error: Unable to analyze document.",
-      };
-      setMessages((prev) => [...prev, errorMsg]);
+    } finally {
+      setIsThinking(false);
     }
   };
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100 p-4">
-      <div className="w-full max-w-xl bg-white shadow-md rounded-lg p-4">
-        <h1 className="text-2xl font-semibold mb-4 text-center">
-          AI Chat Assistant
-        </h1>
+    <div className="min-h-screen bg-gray-100">
+      {/* 🔹 Full-width TopBar */}
+      <div className="bg-white shadow p-4">
+        <TopBar2 />
+      </div>
 
-        <div className="mb-4">
-          <input
-            type="file"
-            accept=".pdf,.jpg,.png"
-            onChange={(e) => {
-              if (e.target.files[0]) {
-                uploadDocument(e.target.files[0]);
-              }
-            }}
-            className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:border-0 file:rounded-md file:bg-blue-500 file:text-white hover:file:bg-blue-600"
-          />
+      {/* 🔹 Expanded Chat Card Full Width */}
+      <div className="w-[95%] mx-auto bg-white rounded-lg shadow-lg mt-4 p-6">
+        {/* Simple Header */}
+        <div className="bg-green-button text-white p-4 rounded text-2xl font-semibold mb-4">
+          AI Agent
         </div>
 
-        <div className="h-96 overflow-y-auto border rounded p-2 mb-4 bg-gray-50">
+        {/* Chat Window */}
+        <div className="h-[500px] overflow-y-auto border border-gray-200 p-2 bg-gray-50 rounded mb-4">
           {messages.map((msg, i) => (
             <div
               key={i}
@@ -82,16 +104,25 @@ function App() {
               <div
                 className={`px-4 py-2 rounded-lg max-w-[75%] ${
                   msg.role === "user"
-                    ? "bg-blue-500 text-white"
+                    ? "bg-green-button text-white"
                     : "bg-gray-300 text-gray-800"
                 }`}
               >
-                {msg.content}
+                <ReactMarkdown>{msg.content}</ReactMarkdown>
               </div>
             </div>
           ))}
+
+          {isThinking && (
+            <div className="my-2 flex justify-start">
+              <div className="px-4 py-2 rounded-lg max-w-[75%] bg-gray-300 text-gray-800 animate-pulse">
+                <span className="inline-block animate-pulse">...</span>
+              </div>
+            </div>
+          )}
         </div>
 
+        {/* Input Bar with two buttons */}
         <div className="flex">
           <input
             className="flex-grow border rounded-l px-4 py-2 focus:outline-none"
@@ -101,10 +132,10 @@ function App() {
             placeholder="Type your message..."
           />
           <button
-            className="bg-blue-500 text-white px-4 py-2 rounded-r hover:bg-blue-600"
+            className="bg-green-button text-white px-4 py-2 rounded-r hover:bg-lime-400 transition-colors duration-200"
             onClick={sendMessage}
           >
-            Send
+            <i className="fa-solid fa-paper-plane-top -rotate-45"></i>
           </button>
         </div>
       </div>

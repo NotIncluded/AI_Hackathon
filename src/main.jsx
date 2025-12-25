@@ -9,6 +9,10 @@ import DarftPage from "./pages/DarftPage.jsx";
 import InactivePage from "./pages/InactivePage.jsx";
 import UpgradePage from "./pages/UpgradePage.jsx";
 import AddPage from "./pages/AddPage.jsx";
+import SummaryPage from "./pages/SummaryPage.jsx";
+import AllQuestionPage from "./pages/AllQuestionPage.jsx";
+import MainSummaryContent from "./pages/MainSummaryContent.jsx";
+import AllRespondPage from "./pages/AllRespondPage.jsx";
 
 import ChatPage from "./pages/AddPage/ChatPage.jsx";
 import EditPage from "./pages/AddPage/EditPage.jsx";
@@ -23,7 +27,7 @@ import Backend3 from "./backend/Backend3.jsx";
 const router = createBrowserRouter([
   {
     path: "/",
-    element: <App />,
+    element: <App agent_id="asst_joBoepFCQchSLCQ5BlKTVKmM" />,
   },
   {
     path: "/dashboard",
@@ -54,7 +58,16 @@ const router = createBrowserRouter([
     ],
   },
   {
-    path: "/respond",
+    path: "/summary/:surveyId",
+  element: <SummaryPage />,
+  children: [
+    { index: true, element: <MainSummaryContent agent_id="asst_gd0SlyeZwjGFm4LPZA5fMyqp"/> },
+    { path: "question", element: <AllQuestionPage /> },
+    { path: "respond", element: <AllRespondPage /> },
+  ],
+  },
+  {
+    path: "/respond/:surveyId",
     element: <RespondPage />
   }
 ]);
